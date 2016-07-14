@@ -49,7 +49,12 @@
   
   NSString* name = [[self.repository readConfigOptionForVariable:@"user.name" error:NULL] value];
   NSString* email = [[self.repository readConfigOptionForVariable:@"user.email" error:NULL] value];
-  NSString* user = email && name ? [NSString stringWithFormat:@"%@ <%@>", name, email] : (name ? name : (email ? email :  NSLocalizedString(@"N/A", nil)));
+  NSString* committer_name = [[self.repository readConfigOptionForVariable:@"duet.env.git-committer-name" error:NULL] value];
+  NSString* committer_email = [[self.repository readConfigOptionForVariable:@"duet.env.git-committer-email" error:NULL] value];
+  NSString *user = email && name ? [NSString stringWithFormat:@"%@ <%@>", name, email] : (name ? name : (email ? email : NSLocalizedString(@"N/A", nil)));
+  if (committer_name && committer_email) {
+      user = [NSString stringWithFormat:@"%@ %@ %@ <%@>", user, NSLocalizedString(@"with", nil), committer_name, committer_email];
+  }
   CGFloat fontSize = _infoTextField.font.pointSize;
   NSMutableAttributedString* string = [[NSMutableAttributedString alloc] init];
   [string beginEditing];

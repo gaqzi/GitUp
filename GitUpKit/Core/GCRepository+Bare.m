@@ -363,12 +363,54 @@ cleanup:
                            author:(const git_signature*)author
                           message:(NSString*)message
                             error:(NSError**)error {
+//  git_signature *committer = NULL;
+  NSString *committer_name = [[self readConfigOptionForVariable:@"duet.env.git-committer-name" error:NULL] value];
+  NSString *committer_email = [[self readConfigOptionForVariable:@"duet.env.git-committer-email" error:NULL] value];
+
+  git_signature* committer = &(git_signature) {
+      .name = (char *) [committer_name UTF8String],
+      .email = (char *) [committer_email UTF8String]
+  };
+
+//  if (!(committer_name && committer_email)) {
+//    git_signature committer_tmp = (git_signature) {
+//            .name = (char *) [committer_name UTF8String],
+//            .email = (char *) [committer_email UTF8String]
+//    };
+//    committer = committer_tmp;
+//    committer = NULL;
+//  }
+
+  return [self createCommitFromTree:tree withParents:parents count:count author:author committer: committer_name && committer_email ? committer : NULL message:message error:error];
+}
+
+- (const git_signature *)createCommitterFromAuthor:(const git_signature *)author
+                                   committer:(const git_signature *)committer {
+  const git_signature * new_committer = &(git_signature) {
+      .name = committer->name,
+      .email = committer->email,
+      .when = author->when
+  };
+
+  return new_committer;
+}
+
+- (GCCommit *)createCommitFromTree:(git_tree*)tree
+                      withParents:(const git_commit**)parents
+                            count:(NSUInteger)count
+                           author:(const git_signature*)author
+                           committer:(const git_signature*)committer
+                          message:(NSString*)message
+                            error:(NSError**)error {
   GCCommit* commit = nil;
   git_signature* signature = NULL;
-  
+  // signature = author
+  // the field after author is committer, so just need to parse author and committer from the git/config file to set them now
+
   git_oid oid;
   CALL_LIBGIT2_FUNCTION_GOTO(cleanup, git_signature_default, &signature, self.private);
-  CALL_LIBGIT2_FUNCTION_GOTO(cleanup, git_commit_create, &oid, self.private, NULL, author ? author : signature, signature, NULL, GCCleanedUpCommitMessage(message).bytes, tree, count, parents);
+  committer = [self createCommitterFromAuthor:author committer:committer];
+  CALL_LIBGIT2_FUNCTION_GOTO(cleanup, git_commit_create, &oid, self.private, NULL, author ? author : signature, committer ? committer : signature, NULL, GCCleanedUpCommitMessage(message).bytes, tree, count, parents);
   git_commit* newCommit = NULL;
   CALL_LIBGIT2_FUNCTION_GOTO(cleanup, git_commit_lookup, &newCommit, self.private, &oid);
   commit = [[GCCommit alloc] initWithRepository:self commit:newCommit];
