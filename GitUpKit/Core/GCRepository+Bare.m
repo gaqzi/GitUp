@@ -366,11 +366,16 @@ cleanup:
 //  git_signature *committer = NULL;
   NSString *committer_name = [[self readConfigOptionForVariable:@"duet.env.git-committer-name" error:NULL] value];
   NSString *committer_email = [[self readConfigOptionForVariable:@"duet.env.git-committer-email" error:NULL] value];
+  NSString *author_name = [[self readConfigOptionForVariable:@"duet.env.git-author-name" error:NULL] value];
+  NSString *author_email = [[self readConfigOptionForVariable:@"duet.env.git-author-email" error:NULL] value];
+  git_signature* duet_author = NULL;
 
   git_signature* committer = &(git_signature) {
       .name = (char *) [committer_name UTF8String],
       .email = (char *) [committer_email UTF8String]
   };
+
+  CALL_LIBGIT2_FUNCTION_GOTO(cleanup2, git_signature_now, &duet_author, [author_name UTF8String], [author_email UTF8String]);
 
 //  if (!(committer_name && committer_email)) {
 //    git_signature committer_tmp = (git_signature) {
@@ -381,18 +386,11 @@ cleanup:
 //    committer = NULL;
 //  }
 
+  return [self createCommitFromTree:tree withParents:parents count:count author:author ? author : duet_author committer: committer_name && committer_email ? committer : NULL message:message error:error];
+
+cleanup2:
+  git_signature_free(duet_author);
   return [self createCommitFromTree:tree withParents:parents count:count author:author committer: committer_name && committer_email ? committer : NULL message:message error:error];
-}
-
-- (const git_signature *)createCommitterFromAuthor:(const git_signature *)author
-                                   committer:(const git_signature *)committer {
-  const git_signature * new_committer = &(git_signature) {
-      .name = committer->name,
-      .email = committer->email,
-      .when = author->when
-  };
-
-  return new_committer;
 }
 
 - (GCCommit *)createCommitFromTree:(git_tree*)tree
@@ -409,7 +407,7 @@ cleanup:
 
   git_oid oid;
   CALL_LIBGIT2_FUNCTION_GOTO(cleanup, git_signature_default, &signature, self.private);
-  committer = [self createCommitterFromAuthor:author committer:committer];
+//  committer = [self createCommitterFromAuthor:author committer:committer];
   CALL_LIBGIT2_FUNCTION_GOTO(cleanup, git_commit_create, &oid, self.private, NULL, author ? author : signature, committer ? committer : signature, NULL, GCCleanedUpCommitMessage(message).bytes, tree, count, parents);
   git_commit* newCommit = NULL;
   CALL_LIBGIT2_FUNCTION_GOTO(cleanup, git_commit_lookup, &newCommit, self.private, &oid);
